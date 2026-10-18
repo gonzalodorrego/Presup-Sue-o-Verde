@@ -159,69 +159,91 @@
     return { subtotal, desc, iva, total };
   }
 
-  // Arma el PDF (sin guardarlo) para poder descargarlo, compartirlo o imprimirlo
+  // Arma el PDF (sin guardarlo) con el mismo diseño de presupuesto por recuadros
   function buildPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
+    const t = calcular();
 
     const numero = document.getElementById('numero').value;
     const fechaRaw = document.getElementById('fecha').value;
-    const fecha = fechaRaw ? fechaRaw.split('-').reverse().join('/') : '';
-    const validez = document.getElementById('validez').value;
+    const validez = parseInt(document.getElementById('validez').value, 10) || 0;
     const cliente = document.getElementById('cliente').value;
     const direccion = document.getElementById('direccion').value;
     const telefono = document.getElementById('telefono').value;
     const obs = document.getElementById('obs').value;
+    const pctDesc = parseFloat(document.getElementById('descuento').value) || 0;
+    const conIva = document.getElementById('iva').value === 'si';
 
-    // Encabezado
-    if (EMPRESA.logo) {
-      doc.addImage(EMPRESA.logo, 'PNG', 14, 10, 30, 23.8);
+    const fmtFecha = d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    const fechaObj = fechaRaw ? new Date(fechaRaw + 'T00:00:00') : null;
+    const fecha = fechaObj ? fmtFecha(fechaObj) : '';
+    let vencimiento = '';
+    if (fechaObj) {
+      const v = new Date(fechaObj);
+      v.setDate(v.getDate() + validez);
+      vencimiento = fmtFecha(v);
     }
-    let y = 20;
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(16);
-    doc.setTextColor(46, 107, 48);
-    doc.text(EMPRESA.nombre, 52, y);
-    y += 7;
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(9);
+
+    const caja = (x, y, w, h) => doc.rect(x, y, w, h);
+    const txt = (s, x, y, opts) => doc.text(s, x, y, opts);
     doc.setTextColor(0, 0, 0);
-    doc.text(`CUIT: ${EMPRESA.cuit}  |  Tel: ${EMPRESA.telefono}  |  ${EMPRESA.email}`, 52, y);
-    y += 20;
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.3);
+
+    // Encabezado: empresa a la izquierda, datos del presupuesto a la derecha
+    caja(8, 8, 194, 58);
+    if (EMPRESA.logo) doc.addImage(EMPRESA.logo, 'PNG', 12, 12, 38, 30.2);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(8.5);
+    txt(EMPRESA.nombre, 12, 47);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(7.5);
+    txt(`Tel: ${EMPRESA.telefono}`, 12, 51.5);
+    txt(EMPRESA.email, 12, 55.5);
+    txt(`CUIT: ${EMPRESA.cuit}`, 12, 59.5);
 
     doc.setFont(undefined, 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(46, 107, 48);
-    doc.text(`PRESUPUESTO N° ${numero}`, 14, y);
-    y += 12;
-
-    // Datos del presupuesto y del cliente
+    doc.setFontSize(11);
+    txt(`Presupuesto Nº: ${numero}`, 110, 18);
     doc.setFont(undefined, 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Fecha: ${fecha}`, 14, y); y += 6;
-    doc.text(`Validez: ${validez} días`, 14, y); y += 10;
-    doc.text(`Cliente: ${cliente}`, 14, y); y += 6;
-    if (direccion) { doc.text(`Dirección: ${direccion}`, 14, y); y += 6; }
-    if (telefono) { doc.text(`Teléfono: ${telefono}`, 14, y); y += 6; }
-    y += 10;
+    doc.setFontSize(8);
+    txt(`Fecha: ${fecha}`, 110, 25);
+    txt(`Fecha de vencimiento: ${vencimiento}`, 110, 30);
+    doc.setFont(undefined, 'bold');
+    txt('Estado: Pendiente de aprobación', 110, 38);
 
-    // Encabezado de la tabla
-    const colServ = 14, colCant = 112, colUnid = 118, colPrecio = 168, colSub = 196;
+    // Datos del cliente a la izquierda, total y validez a la derecha
+    caja(8, 68, 194, 24);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(8.5);
+    txt(cliente || '-', 12, 75);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8);
+    txt(`Dirección: ${direccion}`, 12, 80);
+    txt(`Teléfono: ${telefono}`, 12, 85);
     doc.setFont(undefined, 'bold');
     doc.setFontSize(10);
-    doc.text('Servicio', colServ, y);
-    doc.text('Cant.', colCant, y, { align: 'right' });
-    doc.text('Unidad', colUnid, y);
-    doc.text('Precio unit.', colPrecio, y, { align: 'right' });
-    doc.text('Subtotal', colSub, y, { align: 'right' });
-    y += 3;
-    doc.setDrawColor(90);
-    doc.line(14, y, 196, y);
-    y += 8;
-
-    // Filas
+    txt(`Total: $ ${fmt(t.total)}`, 110, 75);
     doc.setFont(undefined, 'normal');
+    doc.setFontSize(8);
+    txt(`Validez: ${validez} días`, 110, 80);
+
+    // Tabla de trabajos
+    const yTabla = 96, hTabla = 112;
+    caja(8, yTabla, 194, hTabla);
+    const cProd = 12, cUnid = 98, cCant = 132, cPrec = 167, cImp = 200;
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(8);
+    txt('Producto', cProd, yTabla + 6);
+    txt('Unidad', cUnid, yTabla + 6);
+    txt('Cantidad', cCant, yTabla + 6, { align: 'right' });
+    txt('Precio unitario', cPrec, yTabla + 6, { align: 'right' });
+    txt('Importe', cImp, yTabla + 6, { align: 'right' });
+    doc.line(8, yTabla + 9, 202, yTabla + 9);
+
+    doc.setFont(undefined, 'normal');
+    let y = yTabla + 15;
     document.querySelectorAll('#items tr').forEach(tr => {
       const sel = tr.querySelector('.srv');
       if (!sel || sel.value === '') return;
@@ -230,58 +252,64 @@
       const precio = parseFloat(tr.querySelector('.precio').value) || 0;
       const unidad = tr.querySelector('.unid').textContent;
 
-      const lineas = doc.splitTextToSize(nombre, 92);
-      const alto = lineas.length * 5;
-      if (y + alto > 265) { doc.addPage(); y = 20; }
-
-      doc.text(lineas, colServ, y);
-      doc.text(fmt(cant), colCant, y, { align: 'right' });
-      doc.text(unidad, colUnid, y);
-      doc.text(fmt(precio), colPrecio, y, { align: 'right' });
-      doc.text(fmt(cant * precio), colSub, y, { align: 'right' });
-
-      y += alto + 2;
-      doc.setDrawColor(220);
-      doc.line(14, y, 196, y);
-      doc.setDrawColor(0);
-      y += 7;
+      if (y > 200) { doc.addPage(); y = 20; }
+      const lineas = doc.splitTextToSize(nombre, 80);
+      txt(lineas, cProd, y);
+      txt(unidad, cUnid, y);
+      txt(fmt(cant), cCant, y, { align: 'right' });
+      txt(fmt(precio), cPrec, y, { align: 'right' });
+      txt(fmt(cant * precio), cImp, y, { align: 'right' });
+      y += lineas.length * 4 + 4;
     });
 
-    // Totales
-    const t = calcular();
-    if (y > 235) { doc.addPage(); y = 20; }
-    y += 4;
-    doc.setDrawColor(0);
-    doc.line(120, y, 196, y);
-    y += 8;
-    doc.setFont(undefined, 'normal');
-    doc.text('Subtotal:', 165, y, { align: 'right' });
-    doc.text(`$ ${fmt(t.subtotal)}`, 196, y, { align: 'right' });
-    y += 7;
-    if (t.desc > 0) {
-      doc.text('Descuento:', 165, y, { align: 'right' });
-      doc.text(`-$ ${fmt(t.desc)}`, 196, y, { align: 'right' });
-      y += 7;
-    }
-    if (t.iva > 0) {
-      doc.text('IVA (21%):', 165, y, { align: 'right' });
-      doc.text(`$ ${fmt(t.iva)}`, 196, y, { align: 'right' });
-      y += 7;
-    }
+    // Cuadro de IVA a la izquierda
+    const yT = 212;
+    const base = t.subtotal - t.desc;
+    caja(8, yT, 110, 34);
     doc.setFont(undefined, 'bold');
-    doc.setFontSize(12);
-    doc.text('TOTAL:', 165, y, { align: 'right' });
-    doc.text(`$ ${fmt(t.total)}`, 196, y, { align: 'right' });
-    y += 14;
+    doc.setFontSize(7.5);
+    txt('Impuesto', 11, yT + 6);
+    txt('Alícuota', 70, yT + 6, { align: 'right' });
+    txt('Base imp.', 92, yT + 6, { align: 'right' });
+    txt('Importe', 115, yT + 6, { align: 'right' });
+    doc.line(8, yT + 9, 118, yT + 9);
+    doc.setFont(undefined, 'normal');
+    txt(conIva ? 'I.V.A. 21,00 %' : 'I.V.A. 0,00 %', 11, yT + 15);
+    txt(conIva ? '21,00' : '0,00', 70, yT + 15, { align: 'right' });
+    txt(fmt(base), 92, yT + 15, { align: 'right' });
+    txt(fmt(t.iva), 115, yT + 15, { align: 'right' });
+
+    // Cuadro de totales a la derecha
+    caja(122, yT, 80, 34);
+    doc.setFontSize(8);
+    txt('Subtotal', 124, yT + 7);
+    txt(`$ ${fmt(t.subtotal)}`, 200, yT + 7, { align: 'right' });
+    txt(`Bonificación (${fmt(pctDesc)}%)`, 124, yT + 13);
+    txt(`-$ ${fmt(t.desc)}`, 200, yT + 13, { align: 'right' });
+    txt('Recargo', 124, yT + 19);
+    txt('$ 0,00', 200, yT + 19, { align: 'right' });
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(10);
+    txt('Total', 124, yT + 27);
+    txt(`$ ${fmt(t.total)}`, 200, yT + 27, { align: 'right' });
 
     // Observaciones
-    if (obs.trim()) {
-      doc.setFontSize(10);
-      doc.setFont(undefined, 'bold');
-      doc.text('Observaciones:', 14, y);
-      y += 7;
-      doc.setFont(undefined, 'normal');
-      doc.text(doc.splitTextToSize(obs, 180), 14, y);
+    caja(8, 250, 194, 22);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(7.5);
+    txt('Observaciones', 11, 255);
+    doc.setFont(undefined, 'normal');
+    const notas = ['Precios y condiciones válidos hasta la fecha de vencimiento del presupuesto.'];
+    if (obs.trim()) notas.push(obs.trim());
+    const lineasObs = notas.flatMap(n => doc.splitTextToSize(n, 186));
+    txt(lineasObs, 11, 259);
+
+    // Numeración de hojas
+    const total = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      txt(`Hoja ${i} de ${total}`, 202, 282, { align: 'right' });
     }
 
     return doc;
