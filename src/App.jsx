@@ -373,7 +373,7 @@ const App = () => {
             <img src={LOGO_URL} alt="OCASA" className="header-logo" />
             <div className="header-divider" />
             <div>
-              <div className="header-title">Cierre de Turno — PL3</div>
+              <div className="header-title">Presupuesto sueño verde — PL3</div>
               <div className="header-sub">Registro Operativo Colaborativo</div>
             </div>
           </div>
