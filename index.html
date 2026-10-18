@@ -38,7 +38,7 @@
 <fieldset>
   <legend>Datos del presupuesto</legend>
   <div class="row">
-    <div><label>Número</label><input id="numero" value="001"></div>
+    <div><label>Número</label><input id="numero" value="001" readonly></div>
     <div><label>Fecha</label><input type="date" id="fecha"></div>
     <div><label>Validez (días)</label><input type="number" id="validez" value="15"></div>
   </div>
@@ -291,8 +291,19 @@
     return document.getElementById('numero').value;
   }
 
+  // Contador automático: el número siguiente se calcula a partir del último descargado
+  const CONTADOR = 'presupuesto_ultimo_numero';
+
+  function actualizarNumero() {
+    const ultimo = parseInt(localStorage.getItem(CONTADOR), 10) || 0;
+    document.getElementById('numero').value = String(ultimo + 1).padStart(3, '0');
+  }
+
   function generarPDF() {
-    buildPDF().save(`presupuesto_${nombrePresupuesto()}.pdf`);
+    const numero = nombrePresupuesto();
+    buildPDF().save(`presupuesto_${numero}.pdf`);
+    try { localStorage.setItem(CONTADOR, parseInt(numero, 10)); } catch (e) {}
+    actualizarNumero();
   }
 
   async function compartirPDF() {
@@ -358,7 +369,7 @@
     if (!confirm('¿Borrar todos los datos del presupuesto?')) return;
     try { localStorage.removeItem(CLAVE); } catch (e) {}
     ['cliente', 'direccion', 'telefono', 'obs'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('numero').value = '001';
+    actualizarNumero();
     document.getElementById('validez').value = '15';
     document.getElementById('descuento').value = '0';
     document.getElementById('iva').value = 'no';
@@ -372,6 +383,7 @@
   if (!cargar()) {
     document.getElementById('fecha').valueAsDate = new Date();
   }
+  actualizarNumero();
   if (document.querySelectorAll('#items tr').length === 0) {
     agregarItem();
   }
