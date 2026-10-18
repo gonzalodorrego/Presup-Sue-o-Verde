@@ -86,6 +86,7 @@
 </div>
 
 <button class="primary" onclick="generarPDF()">Generar PDF</button>
+<button onclick="limpiarCampos()">Limpiar campos</button>
 
 <script>
   // Servicios de prueba. Más adelante este listado se reemplaza por el catálogo.
@@ -260,10 +261,65 @@
     doc.save(`presupuesto_${numero}.pdf`);
   }
 
+  // Guardado automático: los datos quedan en este navegador aunque se cierre la página
+  const CLAVE = 'presupuesto_borrador';
+  const CAMPOS = ['cliente', 'direccion', 'telefono', 'numero', 'fecha', 'validez', 'descuento', 'iva', 'obs'];
+
+  function guardar() {
+    const datos = {};
+    CAMPOS.forEach(id => datos[id] = document.getElementById(id).value);
+    datos.items = [...document.querySelectorAll('#items tr')].map(tr => ({
+      srv: tr.querySelector('.srv').value,
+      cant: tr.querySelector('.cant').value,
+      precio: tr.querySelector('.precio').value
+    }));
+    try { localStorage.setItem(CLAVE, JSON.stringify(datos)); } catch (e) {}
+  }
+
+  function cargar() {
+    let datos = null;
+    try { datos = JSON.parse(localStorage.getItem(CLAVE)); } catch (e) {}
+    if (!datos) return false;
+
+    CAMPOS.forEach(id => { if (datos[id] !== undefined) document.getElementById(id).value = datos[id]; });
+    document.getElementById('items').innerHTML = '';
+    (datos.items || []).forEach(it => {
+      agregarItem();
+      const tr = document.querySelector('#items tr:last-child');
+      tr.querySelector('.srv').value = it.srv;
+      tr.querySelector('.cant').value = it.cant;
+      tr.querySelector('.precio').value = it.precio;
+      cambiarServicio(tr.querySelector('.srv'));
+    });
+    return true;
+  }
+
+  function limpiarCampos() {
+    if (!confirm('¿Borrar todos los datos del presupuesto?')) return;
+    try { localStorage.removeItem(CLAVE); } catch (e) {}
+    ['cliente', 'direccion', 'telefono', 'obs'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('numero').value = '001';
+    document.getElementById('validez').value = '15';
+    document.getElementById('descuento').value = '0';
+    document.getElementById('iva').value = 'no';
+    document.getElementById('fecha').valueAsDate = new Date();
+    document.getElementById('items').innerHTML = '';
+    agregarItem();
+    calcular();
+  }
+
   // Inicio
-  document.getElementById('fecha').valueAsDate = new Date();
-  agregarItem();
+  if (!cargar()) {
+    document.getElementById('fecha').valueAsDate = new Date();
+  }
+  if (document.querySelectorAll('#items tr').length === 0) {
+    agregarItem();
+  }
   calcular();
+
+  // Cada cambio en cualquier campo se guarda
+  document.addEventListener('input', guardar);
+  document.addEventListener('change', guardar);
 </script>
 
 </body>
